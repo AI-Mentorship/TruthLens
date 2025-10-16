@@ -73,31 +73,26 @@ def analyze_product_legitimacy(product_data: ProductAnalysis) -> dict:
     scam_indicators = 0
     legit_indicators = 0
     
-    # Check title for suspicious patterns
     title_lower = product_data.title.lower()
     suspicious_words = ['urgent', 'limited time', 'act now', 'guaranteed', 'miracle', 'secret', 'exclusive offer']
     if any(word in title_lower for word in suspicious_words):
         scam_indicators += 1
-        reasons.append("Suspicious language in title")
+        reasons.append("Suspicious language")
     
-    # Check price patterns
     if product_data.price:
         try:
-            # Extract numeric price
             price_match = re.search(r'[\d,]+\.?\d*', product_data.price.replace('$', '').replace(',', ''))
             if price_match:
                 price_value = float(price_match.group())
-                # Very low prices can be suspicious
                 if price_value < 1.0:
                     scam_indicators += 1
-                    reasons.append("Unusually low price")
+                    reasons.append("Low price")
                 elif price_value > 1000:
                     legit_indicators += 1
-                    reasons.append("Reasonable price range")
+                    reasons.append("Normal price")
         except:
             pass
     
-    # Check seller information
     if product_data.seller:
         seller_lower = product_data.seller.lower()
         if 'amazon' in seller_lower or 'walmart' in seller_lower or 'target' in seller_lower:
@@ -105,22 +100,20 @@ def analyze_product_legitimacy(product_data: ProductAnalysis) -> dict:
             reasons.append("Reputable seller")
         elif len(seller_lower) < 3 or seller_lower.isdigit():
             scam_indicators += 1
-            reasons.append("Suspicious seller name")
+            reasons.append("Suspicious seller")
     
-    # Check rating patterns
     if product_data.rating:
         try:
             rating_value = float(product_data.rating)
             if rating_value < 2.0:
                 scam_indicators += 1
-                reasons.append("Very low rating")
+                reasons.append("Low rating")
             elif rating_value > 4.0:
                 legit_indicators += 1
                 reasons.append("Good rating")
         except:
             pass
     
-    # Check reviews count
     if product_data.reviews_count:
         try:
             reviews_match = re.search(r'[\d,]+', product_data.reviews_count.replace(',', ''))
@@ -128,63 +121,23 @@ def analyze_product_legitimacy(product_data: ProductAnalysis) -> dict:
                 reviews_value = int(reviews_match.group())
                 if reviews_value < 5:
                     scam_indicators += 1
-                    reasons.append("Very few reviews")
-                elif reviews_value > 100:
+                    reasons.append("Few reviews")
+                elif reviews_value > 50:
                     legit_indicators += 1
                     reasons.append("Many reviews")
-                elif reviews_value > 20:
-                    legit_indicators += 0.5  # Partial credit for moderate reviews
-                    reasons.append("Moderate number of reviews")
         except:
             pass
     
-    # Check title length and quality
-    if product_data.title:
-        title_length = len(product_data.title)
-        if title_length < 10:
-            scam_indicators += 1
-            reasons.append("Very short product title")
-        elif title_length > 100:
-            scam_indicators += 0.5
-            reasons.append("Unusually long product title")
-        elif 20 <= title_length <= 80:
-            legit_indicators += 0.5
-            reasons.append("Appropriate title length")
-    
-    # Check for missing critical information
-    missing_info_count = 0
-    if not product_data.price:
-        missing_info_count += 1
-    if not product_data.rating:
-        missing_info_count += 1
-    if not product_data.reviews_count:
-        missing_info_count += 1
-    
-    if missing_info_count >= 2:
-        scam_indicators += 1
-        reasons.append("Missing critical product information")
-    elif missing_info_count == 0:
-        legit_indicators += 0.5
-        reasons.append("Complete product information available")
-    
     # Determine final status
-    total_indicators = scam_indicators + legit_indicators
-    
-    if scam_indicators > legit_indicators and scam_indicators >= 2:
+    if scam_indicators > legit_indicators:
         status = 'scam'
-        confidence = min(0.9, 0.5 + (scam_indicators * 0.1))
-    elif legit_indicators > scam_indicators and legit_indicators >= 2:
+        confidence = 0.7 + (scam_indicators * 0.05)
+    elif legit_indicators > scam_indicators:
         status = 'legit'
-        confidence = min(0.9, 0.5 + (legit_indicators * 0.1))
+        confidence = 0.7 + (legit_indicators * 0.05)
     else:
         status = 'uncertain'
-        # Calculate confidence based on available indicators and data quality
-        if total_indicators == 0:
-            confidence = 0.3  # Low confidence when no indicators found
-        else:
-            # Base confidence on the ratio of stronger indicators
-            stronger_indicators = max(scam_indicators, legit_indicators)
-            confidence = 0.4 + (stronger_indicators * 0.1)  # Range: 0.4 to 0.7
+        confidence = 0.4
     
     return {
         'status': status,
