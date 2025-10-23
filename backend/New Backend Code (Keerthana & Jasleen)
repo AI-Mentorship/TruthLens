@@ -1,0 +1,236 @@
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import requests
+import re
+
+# ----------------------------
+#  FastAPI Initialization
+# ----------------------------
+app = FastAPI(title="TruthLens Backend API", version="2.0")
+
+# Allow requests from the Chrome extension or local dev
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Replace "*" with specific domains in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ----------------------------
+#  External AI Detection API
+# ----------------------------
+API_URL = "https://api.sapling.ai/api/v1/aidetect"  # replace with GPTZero if needed
+API_KEY = "L5GO02U1QNW2WNTAGDUZV3Q705OPMUP6"
+
+# ----------------------------
+#  Data Models
+# ----------------------------
+class TextFromFrontEnd(BaseModel):
+    text: str
+
+class ProductAnalysis(BaseModel):
+    title: str
+    description: str = ""
+    price: str = ""
+    seller: str = ""
+    rating: str = ""
+    reviews_count: str = ""
+    url: str = ""
+
+# ----------------------------
+#  Utility Functions
+# ----------------------------
+def normalize_ai_score(ai_result: dict) -> float:
+    """
+    Normalize API response from Sapling, GPTZero, Hive, etc. into a 0–1 score.
+    """
+    possible_keys = ["score", "confidence", "probability", "ai_score"]
+    for key in possible_keys:
+        if key in ai_result:
+            try:
+                val = float(ai_result[key])
+                if 0 <= val <= 1:
+                    return val
+            except:
+                continue
+    if "is_ai" in ai_result:
+        return 0.9 if ai_result["is_ai"] else 0.1
+    return 0.5  # Default fallback
+
+
+def analyze_product_legitimacy(product: ProductAnalysis) -> dict:
+    """
+    Heuristic analysis of product legitimacy.
+    Uses language, pricing, rating, and seller metadata.
+    """
+    reasons = []
+    scam_indicators = 0
+    legit_indicators = 0
+
+    # 1. Suspicious language
+    suspicious_words = [
+        "urgent", "limited time", "act now", "guaranteed",
+        "miracle", "secret", "exclusive offer", "too good to be true"
+    ]
+    if any(word in product.title.lower() for word in suspicious_words):
+        scam_indicators += 1
+        reasons.append("Suspicious marketing language detected")
+
+    # 2. Price analysis
+    if product.price:
+        try:
+            match = re.search(r"[\d,]+\.?\d*", product.price.replace("$", "").replace(",", ""))
+            if match:
+                price_value = float(match.group())
+                if price_value < 1.0:
+                    scam_indicators += 1
+                    reasons.append("Price unrealistically low")
+                elif price_value > 1000:
+                    legit_indicators += 1
+                    reasons.append("High-value product (plausible)")
+        except:
+            pass
+
+    # 3. Seller credibility
+    if product.seller:
+        seller = product.seller.lower()
+        if any(brand in seller for brand in ["amazon", "walmart", "target", "bestbuy"]):
+            legit_indicators += 1
+            reasons.append("Recognized/reputable seller")
+        elif len(seller) < 3 or seller.isdigit():
+            scam_indicators += 1
+            reasons.append("Suspicious seller identity")
+
+    # 4. Rating quality
+    if product.rating:
+        try:
+            rating = float(product.rating)
+            if rating < 2.0:
+                scam_indicators += 1
+                reasons.append("Low rating")
+            elif rating > 4.0:
+                legit_indicators += 1
+                reasons.append("High rating")
+        except:
+            pass
+
+    # 5. Review count
+    if product.reviews_count:
+        try:
+            reviews = int(re.sub(r"[^\d]", "", product.reviews_count))
+            if reviews < 5:
+                scam_indicators += 1
+                reasons.append("Very few reviews")
+            elif reviews > 50:
+                legit_indicators += 1
+                reasons.append("Many reviews (likely authentic)")
+        except:
+            pass
+
+    # 6. Compute heuristic result
+    if scam_indicators >= legit_indicators + 1:
+        status = "scam"
+        confidence = min(1.0, 0.65 + (scam_indicators * 0.08))
+    elif legit_indicators >= scam_indicators + 1:
+        status = "legit"
+        confidence = min(1.0, 0.7 + (legit_indicators * 0.08))
+    else:
+        status = "uncertain"
+        confidence = 0.5
+
+    return {
+        "status": status,
+        "confidence": confidence,
+        "reasons": reasons,
+        "indicators": {
+            "scam": scam_indicators,
+            "legit": legit_indicators,
+        },
+    }
+
+# ----------------------------
+#  API Endpoints
+# ----------------------------
+
+@app.post("/check-text")
+def check_ai_text(item: TextFromFrontEnd):
+    """
+    Endpoint to analyze arbitrary text for AI generation probability.
+    """
+    headers = {"Authorization": f"Key {API_KEY}"}
+    data = {"text": item.text}
+
+    try:
+        response = requests.post(API_URL, headers=headers, json=data)
+        response.raise_for_status()
+        ai_result = response.json()
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=500, detail=f"AI detection API error: {str(e)}")
+
+    ai_score = normalize_ai_score(ai_result)
+    return {"ai_score": ai_score, "raw_response": ai_result}
+
+
+@app.post("/analyze-product")
+def analyze_product(product: ProductAnalysis):
+    """
+    Endpoint to perform full product legitimacy analysis.
+    Combines heuristic and AI-based signals.
+    """
+    try:
+        # Step 1: Heuristic analysis
+        heuristic_result = analyze_product_legitimacy(product)
+
+        # Step 2: Combine title and description for AI detection
+        combined_text = f"{product.title} {product.description}".strip()
+        ai_result = {}
+        ai_score = 0.5
+
+        if combined_text:
+            headers = {"Authorization": f"Key {API_KEY}"}
+            data = {"text": combined_text}
+            try:
+                ai_response = requests.post(API_URL, headers=headers, json=data)
+                ai_response.raise_for_status()
+                ai_result = ai_response.json()
+                ai_score = normalize_ai_score(ai_result)
+            except requests.exceptions.RequestException as e:
+                ai_result = {"error": str(e)}
+
+        # Step 3: Combine signals
+        final_confidence = (heuristic_result["confidence"] * 0.5) + (ai_score * 0.5)
+
+        if ai_score > 0.8:
+            heuristic_result["status"] = "scam"
+            heuristic_result["reasons"].append("Likely AI-generated content")
+        elif ai_score > 0.6 and heuristic_result["status"] == "legit":
+            heuristic_result["status"] = "uncertain"
+
+        if final_confidence > 0.7:
+            final_status = "legit"
+        elif final_confidence < 0.4:
+            final_status = "scam"
+        else:
+            final_status = "uncertain"
+
+        # Step 4: Return combined analysis
+        return {
+            "success": True,
+            "analysis": {
+                "final_status": final_status,
+                "final_confidence": round(final_confidence, 2),
+                "ai_score": round(ai_score, 2),
+                "heuristic_result": heuristic_result,
+                "ai_raw": ai_result,
+            },
+            "product_info": {
+                "title": product.title,
+                "url": product.url,
+            },
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Analysis error: {str(e)}")
+
