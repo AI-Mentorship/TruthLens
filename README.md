@@ -1,27 +1,34 @@
 # TruthLens - Product Scam Detector
 
-TruthLens is a browser extension that analyzes products on e-commerce websites to detect potential scams using AI-powered analysis and pattern recognition.
+TruthLens is a browser extension that helps you detect potential scams on e-commerce websites by analyzing products using AI-powered analysis with Google Gemini.
 
 ## Features
 
-- 🔍 **Real-time Product Analysis**: Automatically analyzes products as you browse
-- 🤖 **AI-Powered Detection**: Uses AI to detect suspicious content and patterns
-- 📊 **Comprehensive Analysis**: Analyzes title, price, seller, ratings, and reviews
-- 🎯 **Multi-site Support**: Works on Amazon, Walmart, eBay, Target, Best Buy, and more
-- 📈 **Statistics Tracking**: Tracks analysis results across your browsing session
-- 🔄 **Backend Integration**: Connects to a FastAPI backend for advanced analysis
+- ☑️ **Product Selection**: Select products manually using checkboxes on search results pages
+- 🤖 **AI-Powered Detection**: Uses Google Gemini AI to analyze product text and images
+- 📊 **Batch Analysis**: Analyze multiple selected products at once
+- 📈 **Percentage-Based Scoring**: Get detailed legitimacy, scam, and uncertain percentages
+- 🎯 **Multi-site Support**: Works on Amazon (all regions), Walmart, eBay, Target, Best Buy, Newegg, Alibaba, and AliExpress
+- 📊 **Session Statistics**: Tracks analysis results (legit/scam/uncertain) for your current browsing session
+- ⚡ **Smart Caching**: Prevents duplicate API calls by caching analysis results
+- 🔄 **Sequential Processing**: Queue-based analysis system to manage API rate limits efficiently
+- ⭐ **Review Bonus**: Automatic bonus scoring for products with 50+ reviews and 4.5+ ratings
 
 ## Architecture
 
 ### Frontend (Browser Extension)
-- **React-based popup**: Main extension interface
-- **Content Script**: Extracts product data and displays analysis indicators
-- **API Service**: Communicates with backend for analysis
+- **React-based popup**: Main extension interface showing session statistics and toggle controls
+- **Content Script**: Adds checkboxes to products and "Analyze Selected Products" button
+- **API Service**: Communicates with backend for batch analysis and result polling
+- **Analysis Caching**: Stores results in localStorage to prevent duplicate API calls
 
 ### Backend (FastAPI Server)
-- **Product Analysis Endpoint**: `/analyze-product` - Analyzes product legitimacy
-- **AI Detection**: Integrates with external AI services for content analysis
-- **Pattern Recognition**: Custom algorithms for detecting scam indicators
+- **Sequential Queue Processing**: Processes analyses one at a time to manage API rate limits
+- **Google Gemini AI Integration**: Analyzes product text and images using Gemini Vision API
+- **Batch Analysis Endpoint**: `/analyze-products-batch` - Analyzes multiple products at once
+- **Queue-Based Analysis**: `/analyze-product` queues analysis, `/analysis-result/{id}` retrieves results
+- **Rate Limiting**: 100 API calls per hour with automatic reset
+- **Fallback Analysis**: Basic heuristics when AI service is unavailable
 
 ## Installation & Setup
 
@@ -29,17 +36,24 @@ TruthLens is a browser extension that analyzes products on e-commerce websites t
 - Node.js (v14 or higher)
 - Python 3.8 or higher
 - Chrome/Chromium browser
+- Google Gemini API key (for AI analysis)
 
 ## Usage
+1. **Navigate** to a supported e-commerce site (Amazon, Walmart, etc.)
+2. **Open the extension popup** and toggle it "On" if not already active
+3. **Select products** by checking the checkboxes that appear on product cards in search results
+4. **Click "Analyze Selected Products"** button (appears in bottom-right corner)
+5. **Wait for analysis** - Products will be analyzed sequentially (green checkmark = legit, red X = scam, orange dots = uncertain)
+6. **Click analysis indicators** on products to see detailed breakdown including:
+   - Legitimacy, scam, and uncertain percentages
+   - AI text and image generation analysis
+   - Review bonus status
+   - Complete analysis conclusion
+7. **View session statistics** in the popup showing total legit/scam/uncertain products analyzed
 
-1. **Enable the extension** on supported e-commerce sites
-2. **Toggle the switch** in the popup to activate analysis
-3. **Browse products** - TruthLens will automatically analyze visible products
-4. **Click indicators** on products to see detailed analysis results
-5. **View statistics** in the popup to track analysis across your session
+**Note**: Analysis results are cached to prevent duplicate API calls. Each session can analyze up to 100 products before requiring a page refresh.
 
 ## Supported Websites
-
 - Amazon (all regions)
 - Walmart
 - eBay
@@ -49,79 +63,88 @@ TruthLens is a browser extension that analyzes products on e-commerce websites t
 - Alibaba
 - AliExpress
 
-## API Endpoints
+## Analysis System
 
-### POST `/analyze-product`
-Analyzes a product for legitimacy.
+TruthLens uses a comprehensive AI-powered analysis system:
 
-**Request Body**:
-```json
-{
-  "title": "Product Title",
-  "description": "Product Description",
-  "price": "$99.99",
-  "seller": "Seller Name",
-  "rating": "4.5",
-  "reviews_count": "1,234",
-  "url": "https://example.com/product"
-}
-```
+### AI-Powered Detection
+- **Text Analysis**: Uses Google Gemini to analyze product titles, descriptions, and metadata
+- **Image Analysis**: Uses Gemini Vision API to detect AI-generated product images
+- **Combined Scoring**: Averages text and image AI generation probabilities
+- **Legitimacy Conversion**: Converts AI scores to legitimacy percentages (0-100%)
 
-**Response**:
-```json
-{
-  "success": true,
-  "analysis": {
-    "status": "legit|scam|uncertain",
-    "confidence": 0.85,
-    "reasons": ["Good rating", "Reputable seller"],
-    "indicators": {
-      "scam_indicators": 0,
-      "legit_indicators": 2
-    }
-  },
-  "product_info": {
-    "title": "Product Title",
-    "url": "https://example.com/product"
-  }
-}
-```
+### Review Bonus System
+Products with **50+ reviews** and **4.5+ star ratings** receive a **+10% legitimacy bonus** (capped at 95%).
 
-### POST `/check-text`
-Legacy endpoint for AI text detection.
+### Status Determination
+- **Legit** (Green ✓): ≥70% legitimacy percentage
+- **Uncertain** (Orange ...): 40-69% legitimacy percentage  
+- **Scam** (Red ✗): <40% legitimacy percentage
 
-## Analysis Factors
-
-TruthLens analyzes products based on multiple factors:
-
-### Scam Indicators
-- Suspicious language in titles ("urgent", "limited time", "act now")
-- Unusually low prices
-- Suspicious seller names
-- Very low ratings (< 2.0)
-- Very few reviews (< 5)
-
-### Legitimate Indicators
-- Reputable sellers (Amazon, Walmart, Target)
-- Reasonable price ranges
-- Good ratings (> 4.0)
-- Many reviews (> 100)
-
-### AI Analysis
-- Detects AI-generated content
-- Analyzes text patterns and authenticity
-- Cross-references with known scam patterns
+### Fallback Analysis
+When AI service is unavailable, uses basic heuristics:
+- Suspicious keywords in titles
+- Unusually low prices (<$1)
+- Very low ratings (<2.0)
+- Reputable seller detection
 
 ## Configuration
 
 ### Backend Configuration
-- **API Key**: Update `api_private_key` in `backend/main.py`
-- **API Endpoint**: Modify `api_link` to use different AI services
-- **CORS Settings**: Adjust CORS origins in production
+- **Google Gemini API Key**: Update `api_private_key` in `backend/main.py` (line 35)
+- **API Call Limit**: Adjust `api_call_limit` in `backend/main.py` (default: 100 per hour, line 15)
+- **API Endpoint**: Modify `api_link` in `backend/main.py` if using different Gemini endpoint
+- **CORS Settings**: Currently allows all origins (`*`); restrict for production use
 
 ### Frontend Configuration
-- **Backend URL**: Update `API_BASE_URL` in `frontend/src/services/apiService.js`
-- **Supported Sites**: Modify site configurations in `frontend/public/content.js`
+- **Backend URL**: Update `API_BASE_URL` in `frontend/src/services/apiService.js` (line 2)
+- **Analysis Limit**: Modify `MAX_ANALYSIS_LIMIT` in `frontend/public/content.js` (default: 100 products per session)
+- **Supported Sites**: Site-specific selectors are configured in `frontend/public/content.js` under `siteConfigs` object
+
+### Rate Limiting
+The backend enforces rate limits to prevent exceeding API quotas:
+- **Default**: 100 API calls per hour
+- **Reset**: Automatically resets every hour
+- **Queue Processing**: Analyses are processed sequentially with 2-second delays
 
 ## Development
+
+### Project Structure
+```
+truthlens/
+├── backend/
+│   └── main.py              # FastAPI backend server
+├── frontend/
+│   ├── src/
+│   │   ├── App.js           # Main React popup component
+│   │   ├── Components/      # Settings and Information components
+│   │   └── services/
+│   │       └── apiService.js # API client service
+│   └── public/
+│       ├── content.js       # Content script (runs on e-commerce pages)
+│       └── manifest.json    # Chrome extension manifest
+└── start_backend.py         # Backend startup script
+```
+
+### Running in Development
+
+**Backend:**
+```bash
+python start_backend.py
+# Server runs at http://localhost:8000
+# API docs at http://localhost:8000/docs
+```
+
+**Frontend:**
+```bash
+cd frontend
+npm start
+# Build extension with: npm run build:extension
+```
+
+### Known Limitations
+- Maximum 100 products analyzed per session (requires page refresh to reset)
+- Sequential processing may result in longer wait times for batch analyses
+- Image analysis depends on image URL accessibility from backend server
+- Analysis caching persists in browser localStorage
 
