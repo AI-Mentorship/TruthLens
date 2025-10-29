@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 TruthLens Backend Server Startup Script
-Run this script to start the FastAPI backend server for TruthLens
 """
 
 import subprocess
