@@ -8,6 +8,14 @@ function App() {
   const [supported, setSupported] = useState(true);
   const [active, setActive] = useState(false);
   const [stats, setStats] = useState({ legit: 0, scam: 0, uncertain: 0 });
+  const [sessionStats, setSessionStats] = useState({ 
+    legit: 0, 
+    scam: 0, 
+    uncertain: 0, 
+    total_analyzed: 0,
+    website: '',
+    last_updated: null
+  });
   const [showSettings, setShowSettings] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [backendConnected, setBackendConnected] = useState(false);
@@ -50,13 +58,40 @@ function App() {
       });
 
       try {
-        window.chrome.storage?.local?.get(['truthlens_stats'], (result) => {
-          if (result && result.truthlens_stats) {
-            setStats(result.truthlens_stats);
+        window.chrome.storage?.local?.get(['truthlens_session_stats'], (result) => {
+          if (result && result.truthlens_session_stats) {
+            setSessionStats(result.truthlens_session_stats);
           }
         });
       } catch (_) { }
     });
+
+    // Listen for storage changes to update stats in real-time
+    const handleStorageChange = (changes, area) => {
+      if (area === 'local') {
+        if (changes.truthlens_session_stats) {
+          setSessionStats(changes.truthlens_session_stats.newValue || { 
+            legit: 0, 
+            scam: 0, 
+            uncertain: 0, 
+            total_analyzed: 0,
+            website: '',
+            last_updated: null
+          });
+        }
+      }
+    };
+
+    try {
+      window.chrome.storage?.onChanged?.addListener(handleStorageChange);
+    } catch (_) { }
+
+    // Cleanup listener on unmount
+    return () => {
+      try {
+        window.chrome.storage?.onChanged?.removeListener(handleStorageChange);
+      } catch (_) { }
+    };
   }, []);
 
   const setActiveOnTab = (next) => {
@@ -133,47 +168,61 @@ function App() {
           </label>
         </div>
 
-        <div className="backend-status">
-          <div className="status-indicator">
-            <span className="status-dot" style={{ background: backendConnected ? '#4CAF50' : '#f44336' }}></span>
-            Backend: {backendConnected ? 'Connected' : 'Disconnected'}
-          </div>
-          {!backendConnected && (
-            <p className="backend-warning">
-              ⚠️ Backend server not running. Analysis will use fallback mode.
-            </p>
-          )}
-        </div>
-
         <div className="stats-section">
-          <h3>Website's Analysis</h3>
+          <h3>Current Session Analysis</h3>
           <div className="stats-grid">
             <div className="stat-item legit">
               <div className="stat-icon">✓</div>
               <div className="stat-info">
-                <div className="stat-number">{stats.legit}</div>
+                <div className="stat-number">{sessionStats.legit}</div>
                 <div className="stat-label">Legit</div>
               </div>
             </div>
             <div className="stat-item scam">
               <div className="stat-icon">✗</div>
               <div className="stat-info">
-                <div className="stat-number">{stats.scam}</div>
+                <div className="stat-number">{sessionStats.scam}</div>
                 <div className="stat-label">Scam</div>
               </div>
             </div>
             <div className="stat-item uncertain">
               <div className="stat-icon">...</div>
               <div className="stat-info">
-                <div className="stat-number">{stats.uncertain}</div>
+                <div className="stat-number">{sessionStats.uncertain}</div>
                 <div className="stat-label">Uncertain</div>
               </div>
+            </div>
+          </div>
+          <div className="session-info">
+            <p><strong>Total Analyzed:</strong> {sessionStats.total_analyzed}</p>
+            <p><strong>Website:</strong> {sessionStats.website || 'N/A'}</p>
+            {sessionStats.last_updated && (
+              <p><strong>Last Updated:</strong> {new Date(sessionStats.last_updated).toLocaleTimeString()}</p>
+            )}
+          </div>
+        </div>
+
+
+        <div className="legend-section">
+          <h3>How to Use</h3>
+          <div className="legend-items">
+            <div className="legend-item">
+              <div className="legend-icon" style={{background: '#4CAF50', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px'}}>☑</div>
+              <span>Select products to analyze</span>
+            </div>
+            <div className="legend-item">
+              <div className="legend-icon" style={{background: '#2196F3', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px'}}>▶</div>
+              <span>Click "Analyze Selected" button</span>
+            </div>
+            <div className="legend-item">
+              <div className="legend-icon" style={{background: '#ff9800', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px'}}>⏳</div>
+              <span>Wait for analysis results</span>
             </div>
           </div>
         </div>
 
         <div className="legend-section">
-          <h3>Product's Status</h3>
+          <h3>Analysis Results</h3>
           <div className="legend-items">
             <div className="legend-item">
               <div className="legend-icon legit">✓</div>
@@ -188,18 +237,6 @@ function App() {
               <span>Uncertain Status</span>
             </div>
           </div>
-        </div>
-
-        <div className="actions">
-          <button className="action-btn" onClick={() => setShowSettings(true)}>
-            Settings
-          </button>
-          <button
-            className="action-btn secondary"
-            onClick={() => setShowInfo(true)}
-          >
-            Information
-          </button>
         </div>
       </div>
     </div>

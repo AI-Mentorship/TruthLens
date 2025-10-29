@@ -58,6 +58,42 @@ class ApiService {
     }
   }
 
+  // Analyze multiple products in batch
+  async analyzeProductsBatch(productsData) {
+    try {
+      const result = await this.makeRequest('/analyze-products-batch', 'POST', { products: productsData });
+      return result;
+    } catch (error) {
+      console.error('Batch product analysis failed:', error);
+      // Return fallback analysis for each product
+      return {
+        success: false,
+        error: error.message,
+        results: productsData.map(productData => ({
+          success: false,
+          error: error.message,
+          analysis: {
+            status: 'uncertain',
+            legitimacy_percentage: 50.0,
+            scam_percentage: 25.0,
+            legit_percentage: 50.0,
+            uncertain_percentage: 25.0,
+            review_bonus: false,
+            conclusion: `❌ Analysis Error: ${error.message}\n\n⚠️ FINAL VERDICT: This product is UNCERTAIN - unable to complete analysis`,
+            ai_percentages: {
+              text_ai_percentage: 0.0,
+              image_ai_percentage: 0.0
+            },
+            analysis_details: {
+              error: error.message,
+              error_type: 'connection_error'
+            }
+          }
+        }))
+      };
+    }
+  }
+
   // Check text using AI detection (legacy endpoint)
   async checkText(text) {
     try {
