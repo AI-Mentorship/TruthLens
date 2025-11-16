@@ -83,6 +83,26 @@
                 '.product-item',
                 '.sku-item'
             ]
+        },
+        'aliexpress': {
+            productSelectors: [
+                // These are fallback selectors, but we use special logic in processProducts
+                '[data-product-id]',
+                'div[class*="item"]',
+                'div[class*="product"]',
+                'div[class*="card"]',
+                'div[class*="gallery"]',
+                '[data-role="item"]'
+            ]
+        },
+        'etsy': {
+            productSelectors: [
+                '[data-listing-id]',
+                '.listing-link',
+                '.js-merch-stash-check-listing',
+                '.v2-listing-card',
+                '.listing-card'
+            ]
         }
     };
 
@@ -93,6 +113,8 @@
         if (hostname.includes('ebay')) return 'ebay';
         if (hostname.includes('target')) return 'target';
         if (hostname.includes('bestbuy')) return 'bestbuy';
+        if (hostname.includes('aliexpress')) return 'aliexpress';
+        if (hostname.includes('etsy')) return 'etsy';
         return 'default';
     }
 
@@ -247,6 +269,146 @@
 
                     const bestbuyRating = element.querySelector('.rating, .stars');
                     if (bestbuyRating) data.rating = bestbuyRating.textContent.match(/(\d+\.?\d*)/)?.[1] || '';
+                    break;
+
+                case 'aliexpress':
+                    // Try multiple title selectors
+                    const aliexpressTitleSelectors = [
+                        'h1', 'h2', 'h3',
+                        '.item-title',
+                        '[data-role="titleLink"]',
+                        '.gallery-offer-title',
+                        'a[href*="/item/"]',
+                        'a[href*="/product/"]',
+                        '[class*="title"]',
+                        '[class*="name"]'
+                    ];
+                    for (const titleSelector of aliexpressTitleSelectors) {
+                        const titleEl = element.querySelector(titleSelector);
+                        if (titleEl && titleEl.textContent && titleEl.textContent.trim().length > 3) {
+                            data.title = titleEl.textContent.trim();
+                            break;
+                        }
+                    }
+                    
+                    // Try to get title from image alt if still not found
+                    if (!data.title || data.title.length < 3) {
+                        const img = element.querySelector('img[alt]');
+                        if (img && img.alt && img.alt.trim().length > 3) {
+                            data.title = img.alt.trim();
+                        }
+                    }
+
+                    // Price selectors
+                    const aliexpressPriceSelectors = [
+                        '.price-current',
+                        '.price',
+                        '.notranslate',
+                        '[data-role="price"]',
+                        '[class*="price"]',
+                        '[class*="cost"]',
+                        'span[class*="currency"]'
+                    ];
+                    for (const priceSelector of aliexpressPriceSelectors) {
+                        const priceEl = element.querySelector(priceSelector);
+                        if (priceEl && priceEl.textContent && priceEl.textContent.trim()) {
+                            const priceText = priceEl.textContent.trim();
+                            // Check if it looks like a price (contains numbers and currency symbols)
+                            if (/\d/.test(priceText) && (/\$|€|£|¥|USD|CNY/.test(priceText) || priceText.match(/\d+\.?\d*/))) {
+                                data.price = priceText;
+                                break;
+                            }
+                        }
+                    }
+
+                    // Rating selectors
+                    const aliexpressRatingSelectors = [
+                        '.rating',
+                        '[data-role="rating"]',
+                        '.star-rating',
+                        '[class*="rating"]',
+                        '[class*="star"]',
+                        '[aria-label*="star"]'
+                    ];
+                    for (const ratingSelector of aliexpressRatingSelectors) {
+                        const ratingEl = element.querySelector(ratingSelector);
+                        if (ratingEl) {
+                            const ratingText = ratingEl.getAttribute('data-rating') || 
+                                             ratingEl.getAttribute('aria-label') ||
+                                             ratingEl.textContent;
+                            const match = ratingText.match(/(\d+\.?\d*)/);
+                            if (match) {
+                                data.rating = match[1];
+                                break;
+                            }
+                        }
+                    }
+
+                    // Reviews count selectors
+                    const aliexpressReviewsSelectors = [
+                        '.rating-num',
+                        '.review-count',
+                        '[data-role="reviewCount"]',
+                        '[class*="review"]',
+                        '[class*="rating-num"]'
+                    ];
+                    for (const reviewsSelector of aliexpressReviewsSelectors) {
+                        const reviewsEl = element.querySelector(reviewsSelector);
+                        if (reviewsEl && reviewsEl.textContent) {
+                            const reviewsText = reviewsEl.textContent;
+                            const match = reviewsText.match(/(\d+(?:,\d+)*)/);
+                            if (match) {
+                                data.reviews_count = match[1];
+                                break;
+                            }
+                        }
+                    }
+
+                    // Seller selectors
+                    const aliexpressSellerSelectors = [
+                        '.store-name',
+                        '.seller-name',
+                        '[data-role="storeName"]',
+                        '[class*="store"]',
+                        '[class*="seller"]',
+                        '[class*="shop"]'
+                    ];
+                    for (const sellerSelector of aliexpressSellerSelectors) {
+                        const sellerEl = element.querySelector(sellerSelector);
+                        if (sellerEl && sellerEl.textContent && sellerEl.textContent.trim()) {
+                            data.seller = sellerEl.textContent.trim();
+                            break;
+                        }
+                    }
+                    break;
+
+                case 'etsy':
+                    const etsyTitle = element.querySelector('.v2-listing-card__title, .listing-link .text-body, h3, .listing-card-title');
+                    if (etsyTitle) data.title = etsyTitle.textContent.trim();
+
+                    const etsyPrice = element.querySelector('.currency-value, .n-listing-card__price .currency-value, .currency-symbol + .currency-value');
+                    if (etsyPrice) {
+                        const priceText = etsyPrice.textContent.trim();
+                        const currencySymbol = element.querySelector('.currency-symbol')?.textContent.trim() || '$';
+                        data.price = currencySymbol + priceText;
+                    }
+
+                    const etsyRating = element.querySelector('.shop2-review-attribution, .rating, [data-rating]');
+                    if (etsyRating) {
+                        const ratingText = etsyRating.getAttribute('data-rating') || etsyRating.textContent;
+                        const match = ratingText.match(/(\d+\.?\d*)/);
+                        if (match) data.rating = match[1];
+                    }
+
+                    const etsyReviews = element.querySelector('.shop2-review-attribution, .review-count');
+                    if (etsyReviews) {
+                        const reviewsText = etsyReviews.textContent;
+                        const match = reviewsText.match(/(\d+(?:,\d+)*)/);
+                        if (match) data.reviews_count = match[1];
+                    }
+
+                    const etsySeller = element.querySelector('.shop-name, .shop2-shop-name');
+                    if (etsySeller) data.seller = etsySeller.textContent.trim();
                     break;
 
                 default:
@@ -928,43 +1090,100 @@
         const config = siteConfigs[site];
         if (!config) return;
 
-        for (const selector of config.productSelectors) {
-            const products = document.querySelectorAll(selector);
+        // Special handling for AliExpress - find product links first, then their containers
+        if (site === 'aliexpress') {
+            const productLinks = document.querySelectorAll('a[href*="/item/"], a[href*="/product/"]');
+            const processedLinks = new Set();
             
-            for (const product of products) {
-                if (isProcessed(product)) continue;
+            for (const link of productLinks) {
+                // Skip if we've already processed this link
+                const href = link.href;
+                if (processedLinks.has(href)) continue;
+                processedLinks.add(href);
                 
-                const style = getComputedStyle(product);
+                // Find the product container - look for parent elements that might contain the product
+                let productContainer = link.closest('[data-product-id]') || 
+                                     link.closest('div[class*="item"]') ||
+                                     link.closest('div[class*="card"]') ||
+                                     link.closest('div[class*="product"]') ||
+                                     link.closest('div[class*="gallery"]') ||
+                                     link.parentElement?.parentElement ||
+                                     link.parentElement ||
+                                     link;
+                
+                if (isProcessed(productContainer)) continue;
+                
+                const style = getComputedStyle(productContainer);
                 if (style.position === 'static') {
-                    product.style.position = 'relative';
+                    productContainer.style.position = 'relative';
                 }
                 
                 // Extract product data
-                const productData = extractProductData(product, site);
+                const productData = extractProductData(productContainer, site);
                 
-                // Only add checkbox if we have meaningful data
-                if (productData.title && productData.title.length > 3) {
-                    // Create checkbox for product selection
-                    const checkbox = createProductCheckbox(productData);
-                    product.appendChild(checkbox);
-                } else {
-                    // Fallback: try to extract basic info from the element itself
-                    console.log('TruthLens: No meaningful data extracted, trying fallback for element:', product);
-                    
-                    // Try to find any text that might be a title
-                    const fallbackTitle = product.textContent.trim().split('\n')[0].substring(0, 100);
-                    if (fallbackTitle && fallbackTitle.length > 3) {
-                        const fallbackData = {
-                            ...productData,
-                            title: fallbackTitle,
-                            description: 'Extracted from page content'
-                        };
-                        const checkbox = createProductCheckbox(fallbackData);
-                        product.appendChild(checkbox);
+                // If no title from container, try to get it from the link
+                if (!productData.title || productData.title.length < 3) {
+                    const linkTitle = link.querySelector('img[alt]')?.alt || 
+                                    link.textContent?.trim() ||
+                                    link.getAttribute('title') ||
+                                    link.querySelector('span')?.textContent?.trim();
+                    if (linkTitle && linkTitle.length > 3) {
+                        productData.title = linkTitle;
                     }
                 }
                 
-                markProcessed(product);
+                // Set URL from link
+                if (link.href) {
+                    productData.url = link.href;
+                }
+                
+                // Only add checkbox if we have meaningful data
+                if (productData.title && productData.title.length > 3) {
+                    const checkbox = createProductCheckbox(productData);
+                    productContainer.appendChild(checkbox);
+                    markProcessed(productContainer);
+                }
+            }
+        } else {
+            // Standard processing for other sites
+            for (const selector of config.productSelectors) {
+                const products = document.querySelectorAll(selector);
+                
+                for (const product of products) {
+                    if (isProcessed(product)) continue;
+                    
+                    const style = getComputedStyle(product);
+                    if (style.position === 'static') {
+                        product.style.position = 'relative';
+                    }
+                    
+                    // Extract product data
+                    const productData = extractProductData(product, site);
+                    
+                    // Only add checkbox if we have meaningful data
+                    if (productData.title && productData.title.length > 3) {
+                        // Create checkbox for product selection
+                        const checkbox = createProductCheckbox(productData);
+                        product.appendChild(checkbox);
+                    } else {
+                        // Fallback: try to extract basic info from the element itself
+                        console.log('TruthLens: No meaningful data extracted, trying fallback for element:', product);
+                        
+                        // Try to find any text that might be a title
+                        const fallbackTitle = product.textContent.trim().split('\n')[0].substring(0, 100);
+                        if (fallbackTitle && fallbackTitle.length > 3) {
+                            const fallbackData = {
+                                ...productData,
+                                title: fallbackTitle,
+                                description: 'Extracted from page content'
+                            };
+                            const checkbox = createProductCheckbox(fallbackData);
+                            product.appendChild(checkbox);
+                        }
+                    }
+                    
+                    markProcessed(product);
+                }
             }
         }
         

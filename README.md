@@ -8,7 +8,7 @@ TruthLens is a browser extension that helps you detect potential scams on e-comm
 - 🤖 **AI-Powered Detection**: Uses Google Gemini AI to analyze product text and images
 - 📊 **Batch Analysis**: Analyze multiple selected products at once
 - 📈 **Percentage-Based Scoring**: Get detailed legitimacy, scam, and uncertain percentages
-- 🎯 **Multi-site Support**: Works on Amazon (all regions), Walmart, eBay, Target, Best Buy, Newegg, Alibaba, and AliExpress
+- 🎯 **Multi-site Support**: Works on Amazon (all regions), Walmart, eBay, Target, Best Buy, Newegg, Alibaba, AliExpress, and Etsy
 - 📊 **Session Statistics**: Tracks analysis results (legit/scam/uncertain) for your current browsing session
 - ⚡ **Smart Caching**: Prevents duplicate API calls by caching analysis results
 - 🔄 **Sequential Processing**: Queue-based analysis system to manage API rate limits efficiently
@@ -38,52 +38,7 @@ TruthLens is a browser extension that helps you detect potential scams on e-comm
 - Chrome/Chromium browser
 - Google Gemini API key (for AI analysis)
 
-### Backend Setup
-
-1. Install Python dependencies:
-```bash
-pip install fastapi uvicorn requests beautifulsoup4 pydantic
-```
-
-2. Update API credentials in `backend/main.py`:
-   - Set `api_private_key` to your Google Gemini API key
-   - Adjust `api_call_limit` if needed (default: 100 per hour)
-
-3. Start the backend server:
-```bash
-python start_backend.py
-```
-Or manually:
-```bash
-cd backend
-python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-The backend will be available at `http://localhost:8000`
-
-### Frontend Setup
-
-1. Install dependencies:
-```bash
-cd frontend
-npm install
-```
-
-2. Build the extension:
-```bash
-npm run build:extension
-```
-
-3. Load the extension in Chrome:
-   - Open Chrome and go to `chrome://extensions/`
-   - Enable "Developer mode"
-   - Click "Load unpacked"
-   - Select the `frontend/build` directory
-
-4. Verify the backend URL in `frontend/src/services/apiService.js` matches your setup (default: `http://localhost:8000`)
-
 ## Usage
-
 1. **Navigate** to a supported e-commerce site (Amazon, Walmart, etc.)
 2. **Open the extension popup** and toggle it "On" if not already active
 3. **Select products** by checking the checkboxes that appear on product cards in search results
@@ -99,7 +54,6 @@ npm run build:extension
 **Note**: Analysis results are cached to prevent duplicate API calls. Each session can analyze up to 100 products before requiring a page refresh.
 
 ## Supported Websites
-
 - Amazon (all regions)
 - Walmart
 - eBay
@@ -108,103 +62,7 @@ npm run build:extension
 - Newegg
 - Alibaba
 - AliExpress
-
-## API Endpoints
-
-### POST `/analyze-product`
-Queues a product for analysis and returns an analysis ID for polling.
-
-**Request Body**:
-```json
-{
-  "title": "Product Title",
-  "description": "Product Description",
-  "price": "$99.99",
-  "seller": "Seller Name",
-  "rating": "4.5",
-  "reviews_count": "1,234",
-  "url": "https://example.com/product",
-  "image_url": "https://example.com/image.jpg"
-}
-```
-
-**Response**:
-```json
-{
-  "success": true,
-  "analysis_id": "analysis_1234567890",
-  "message": "Analysis queued for processing",
-  "status": "queued"
-}
-```
-
-### GET `/analysis-result/{analysis_id}`
-Retrieves the analysis result by ID. Poll this endpoint until status is "completed".
-
-**Response**:
-```json
-{
-  "success": true,
-  "analysis": {
-    "legitimacy_percentage": 75.5,
-    "scam_percentage": 24.5,
-    "legit_percentage": 75.5,
-    "uncertain_percentage": 0.0,
-    "review_bonus": true,
-    "status": "legit",
-    "conclusion": "📊 AI Analysis Results:...",
-    "ai_percentages": {
-      "text_ai_percentage": 15.0,
-      "image_ai_percentage": 20.0,
-      "average_ai_percentage": 17.5
-    }
-  },
-  "status": "completed"
-}
-```
-
-### POST `/analyze-products-batch`
-Analyzes multiple products in batch (used by the extension). Processes products sequentially.
-
-**Request Body**:
-```json
-{
-  "products": [
-    {
-      "title": "Product 1",
-      "description": "...",
-      "price": "$99.99",
-      "seller": "...",
-      "rating": "4.5",
-      "reviews_count": "100",
-      "url": "...",
-      "image_url": "..."
-    }
-  ]
-}
-```
-
-**Response**:
-```json
-{
-  "success": true,
-  "results": [
-    {
-      "success": true,
-      "analysis": { /* analysis object */ }
-    }
-  ],
-  "total_analyzed": 1,
-  "successful": 1,
-  "failed": 0
-}
-```
-
-### POST `/check-text`
-Legacy endpoint for AI text detection.
-
-### GET `/health`
-Health check endpoint to verify backend and AI service connectivity.
+- Etsy
 
 ## Analysis System
 
@@ -284,11 +142,6 @@ cd frontend
 npm start
 # Build extension with: npm run build:extension
 ```
-
-### Testing
-- Test backend health: `GET http://localhost:8000/health`
-- Test batch analysis: Use extension on Amazon/Walmart product search pages
-- View API documentation: `http://localhost:8000/docs` (Swagger UI)
 
 ### Known Limitations
 - Maximum 100 products analyzed per session (requires page refresh to reset)

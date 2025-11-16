@@ -324,6 +324,8 @@ def extract_product_info(url: str) -> dict:
             product_info['seller'] = 'Target'
         elif 'ebay' in domain.lower():
             product_info['seller'] = 'eBay'
+        elif 'etsy' in domain.lower():
+            product_info['seller'] = 'Etsy'
         else:
             product_info['seller'] = domain
         

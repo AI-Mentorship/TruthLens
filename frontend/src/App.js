@@ -46,7 +46,8 @@ function App() {
         'amazon.com', 'amazon.co.uk', 'amazon.ca', 'amazon.de', 'amazon.fr',
         'amazon.it', 'amazon.es', 'amazon.in', 'amazon.co.jp', 'amazon.com.au',
         'walmart.com', 'target.com', 'bestbuy.com', 'newegg.com',
-        'ebay.com', 'alibaba.com', 'aliexpress.com'
+        'ebay.com', 'alibaba.com', 'aliexpress.com', 'aliexpress.us', 'aliexpress.ru', 'aliexpress',
+        'etsy.com'
       ];
       const isSupported = supportedSites.some(site => url.includes(site));
       setSupported(isSupported);
@@ -135,6 +136,7 @@ function App() {
               <li>Newegg</li>
               <li>Alibaba</li>
               <li>AliExpress</li>
+              <li>Etsy</li>
             </ul>
           </div>
         </div>

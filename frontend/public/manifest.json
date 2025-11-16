@@ -24,7 +24,10 @@
     "*://*.newegg.com/*",
     "*://*.ebay.com/*",
     "*://*.alibaba.com/*",
-    "*://*.aliexpress.com/*"
+    "*://*.aliexpress.com/*",
+    "*://*.aliexpress.us/*",
+    "*://*.aliexpress.ru/*",
+    "*://*.etsy.com/*"
   ],
   "icons": {
     "16": "icon16.png",
@@ -59,7 +62,10 @@
         "*://*.newegg.com/*",
         "*://*.ebay.com/*",
         "*://*.alibaba.com/*",
-        "*://*.aliexpress.com/*"
+        "*://*.aliexpress.com/*",
+        "*://*.aliexpress.us/*",
+        "*://*.aliexpress.ru/*",
+        "*://*.etsy.com/*"
       ],
       "js": ["content.js"],
       "run_at": "document_end"
